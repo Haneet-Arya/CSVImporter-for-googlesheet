@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV File Upload</title>
+    <style>
+        #drop-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        /* make good styling for checkboxesDiv */
+        #checkboxesDiv {
+            border: 2px solid #ccc;
+            padding: 20px;
+            text-align: justify;
+            cursor: pointer;
+            background-color: aliceblue;
+        }
+
+        /* make good styling for submitColumns */
+        #submitColumns {
+            border: 2px solid #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-left: 350px;
+            cursor: pointer;
+            background-color: aliceblue;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="drop-area">
+        <p>Drag &amp; Drop CSV files here</p>
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+    </div>
+    <div id="message"></div>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('csvFileInput');
+        const messageDiv = document.getElementById('message');
+
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.classList.add('highlight');
+        });
+
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.classList.remove('highlight');
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('highlight');
+
+            const file = e.dataTransfer.files[0];
+
+            if (file) {
+                // Check if the dropped file is a CSV file
+                if (file.type === 'text/csv') {
+                    handleCSV(file);
+                } else {
+                    messageDiv.innerHTML = 'Please drop a valid CSV file.';
+                }
+            }
+        });
+
+
+
+        // Open file input when clicking on the drop area
+        dropArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Handle file input change event
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+
+            if (file) {
+                // Check if the selected file is a CSV file
+                if (file.type === 'text/csv') {
+                    handleCSV(file);
+                } else {
+                    messageDiv.innerHTML = 'Please select a valid CSV file.';
+                }
+            }
+        });
+
+        function handleCSV(file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                var csvData = e.target.result;
+                // Parse the CSV data and display it for column selection
+                // You can use a library like PapaParse.js for parsing CSV
+                Papa.parse(file, {
+                    dynamicTyping: true, // Automatically convert numeric values to numbers
+                    skipEmptyLines: true, // Skip empty lines in the CSV
+                    complete: function (results) {
+                        if (results.errors.length > 0) {
+                            console.error("CSV parsing errors:", results.errors);
+                        } else {
+                            // Access parsed data in results.data
+                            var parsedData = results.data;
+                            console.log("Parsed CSV data:", parsedData);
+                            var columns = parsedData[0];
+
+                            // create a header meantioning the to selcet the columns we want to remove
+                            var header = document.createElement("h3");
+                            header.textContent = "Select the columns you want to remove ";
+                            messageDiv.appendChild(header);
+
+
+                            // Create a div to hold the checkboxes
+                            var checkboxesDiv = document.createElement("div");
+                            checkboxesDiv.setAttribute("id", "checkboxesDiv");
+                            var checkbox = document.createElement("input");
+                                checkbox.setAttribute("type", "checkbox");
+                                checkbox.setAttribute("name", "columns");
+                                var b = document.createElement("b");
+                                checkbox.setAttribute("value", columns.length);
+                                var label = document.createElement("label");
+                                label.innerHTML = '<b>Remove Column Names (for appending to existing sheet )</b>';
+                                var br = document.createElement("br");
+                                checkboxesDiv.appendChild(checkbox);
+                                checkboxesDiv.appendChild(label);
+                                checkboxesDiv.appendChild(br);
+                            for (var i = 0; i < columns.length; i++) {
+                                // Create a checkbox for each column
+                                var checkbox = document.createElement("input");
+                                checkbox.setAttribute("type", "checkbox");
+                                checkbox.setAttribute("name", "columns");
+                                checkbox.setAttribute("value", i);
+
+                                // Create a label for the checkbox
+                                var label = document.createElement("label");
+                                label.textContent = columns[i];
+
+                                // Create a line break for better spacing
+                                var br = document.createElement("br");
+
+                                // Append the checkbox, label, and line break to the checkboxes div
+                                checkboxesDiv.appendChild(checkbox);
+                                checkboxesDiv.appendChild(label);
+                                checkboxesDiv.appendChild(br);
+                            }
+
+
+                            // Create a button to submit the selected columns
+                            var submitButton = document.createElement("input");
+                            submitButton.setAttribute("type", "button");
+                            submitButton.setAttribute("id", "submitColumns");
+                            submitButton.setAttribute("value", "Submit");
+                            submitButton.addEventListener('click', function () {
+                                // get selcted column values
+                                var selectedColumns = [];
+                                var checkboxes = document.getElementsByName("columns");
+                                for (var i = 0; i < checkboxes.length; i++) {
+                                    if (checkboxes[i].checked && checkboxes[i].value != columns.length) {
+                                        selectedColumns.push(checkboxes[i].value);
+                                    }else{
+                                        if(checkboxes[i].checked && checkboxes[i].value == columns.length){
+                                            parsedData.splice(0,1);
+                                        }
+                                    }
+                                }
+                                // remove selected columns from parsedData
+
+                                for (var i = 0; i < parsedData.length; i++) {
+                                    var count = 0;
+                                    for (var j = 0; j < selectedColumns.length; j++) {
+                                        parsedData[i].splice(selectedColumns[j] - count, 1);
+                                        count++;
+                                    }
+                                }
+                                console.log(parsedData);
+                                writeToSheet(parsedData);
+
+                            });
+
+                            // Append the checkboxes and submit button to the message div
+                            messageDiv.appendChild(checkboxesDiv);
+                            messageDiv.appendChild(submitButton);
+
+                            // Hide the drop area
+                            var dropArea = document.getElementById("drop-area");
+                            dropArea.style.display = "none";
+
+                            // Show the message div
+                            messageDiv.style.display = "block";
+
+
+
+                        }
+                    }
+                });
+            };
+
+            reader.readAsText(file);
+        }
+        function writeToSheet(parsedData){
+            google.script.run.withSuccessHandler(function (response) {
+                document.getElementById("message").textContent = response;
+            }).uploadFile(parsedData);
+        }
+
+
+
+
+    </script>
+</body>
+
+</html>
